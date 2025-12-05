@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Point Wall — Treino de Mira</title>
+  <style>
+    :root{
+      --bg:#0f1724; /* dark navy */
+      --panel:#0b1220;
+      --accent:#ff7a18; /* laranja */
+      --white:#f8fafc;
+      --gray:#9aa4b2;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,'Helvetica Neue',Arial}
+    body{background:linear-gradient(180deg,var(--bg),#051025);color:var(--white);display:flex;align-items:center;justify-content:center;padding:20px}
+    .container{width:100%;max-width:1100px;background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(0,0,0,0.2));border-radius:14px;padding:18px;box-shadow:0 8px 30px rgba(2,6,23,0.7);display:grid;grid-template-columns:1fr 360px;gap:18px}
+
+    /* Canvas area */
+    .play-area{background:linear-gradient(180deg,#071028 0%, #062138 100%);border-radius:10px;padding:10px;display:flex;flex-direction:column;align-items:center}
+    canvas{width:100%;height:640px;border-radius:8px;background:repeating-linear-gradient(90deg, rgba(255,255,255,0.01) 0 40px, transparent 40px 80px);cursor:none}
+
+    /* Side panel */
+    .panel{padding:12px;background:linear-gradient(180deg,var(--panel),rgba(255,255,255,0.02));border-radius:10px}
+    h1{margin:0 0 8px 0;font-size:20px}
+    .stat{display:flex;justify-content:space-between;padding:8px 10px;border-radius:8px;margin-bottom:8px;background:linear-gradient(90deg, rgba(255,255,255,0.01), transparent)}
+    .controls{display:flex;flex-direction:column;gap:8px}
+    label{font-size:13px;color:var(--gray)}
+    input[type=range]{width:100%}
+    .buttons{display:flex;gap:8px;margin-top:8px}
+    button{border:0;padding:10px 12px;border-radius:8px;background:var(--accent);color:var(--white);font-weight:600;cursor:pointer}
+    button.secondary{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--white);font-weight:600}
+    .modes{display:flex;gap:8px;margin:8px 0}
+    .mode{padding:8px;border-radius:8px;background:rgba(255,255,255,0.02);cursor:pointer}
+    .mode.active{box-shadow:0 6px 18px rgba(255,122,24,0.12);border:1px solid rgba(255,122,24,0.22)}
+    footer{font-size:12px;color:var(--gray);margin-top:10px}
+
+    /* Crosshair */
+    .crosshair{position:absolute;pointer-events:none;mix-blend-mode:screen}
+
+    /* small screens */
+    @media (max-width:900px){.container{grid-template-columns:1fr;}.panel{order:2}}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="play-area">
+      <div style="width:100%;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div>
+          <h1>Point Wall</h1>
+          <div style="font-size:13px;color:var(--gray)">Clique nos alvos o mais rápido possível. Pratique precisão e tempo de reação.</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:14px;font-weight:700">Score: <span id="score">0</span></div>
+          <div style="font-size:12px;color:var(--gray)">Acertos: <span id="hits">0</span> • Erros: <span id="misses">0</span></div>
+        </div>
+      </div>
+
+      <div style="position:relative;width:100%">
+        <canvas id="game" width="900" height="640"></canvas>
+        <svg id="crosshair" class="crosshair" width="40" height="40" style="display:none;position:absolute;left:0;top:0;transform:translate(-50%,-50%)">
+          <circle cx="20" cy="20" r="10" stroke="white" stroke-width="2" fill="none" opacity="0.9"></circle>
+          <line x1="20" y1="0" x2="20" y2="8" stroke="white" stroke-width="2" opacity="0.9"></line>
+          <line x1="20" y1="32" x2="20" y2="40" stroke="white" stroke-width="2" opacity="0.9"></line>
+          <line x1="0" y1="20" x2="8" y2="20" stroke="white" stroke-width="2" opacity="0.9"></line>
+          <line x1="32" y1="20" x2="40" y2="20" stroke="white" stroke-width="2" opacity="0.9"></line>
+        </svg>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:12px;align-items:center">
+        <button id="startBtn">Iniciar (Space)</button>
+        <button id="stopBtn" class="secondary">Parar</button>
+        <button id="resetBtn" class="secondary">Reiniciar</button>
+        <div style="margin-left:auto;color:var(--gray);font-size:13px">Tempo: <span id="time">0.0</span>s</div>
+      </div>
+
+    </div>
+
+    <div class="panel">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <strong>Configurações</strong>
+          <div style="font-size:12px;color:var(--gray)">Ajuste o treino</div>
+        </div>
+        <div style="font-size:12px;color:var(--gray)">v1.0</div>
+      </div>
+
+      <div class="stat" style="margin-top:12px"><div>Alvo atual</div><div id="targetType">Círculo</div></div>
+
+      <div class="controls">
+        <label>Tamanho do alvo: <span id="sizeLabel">40</span>px</label>
+        <input id="size" type="range" min="12" max="120" value="40">
+
+        <label>Velocidade (tempo entre spawns): <span id="spdLabel">900</span>ms</label>
+        <input id="speed" type="range" min="200" max="1800" value="900">
+
+        <label>Modo:</label>
+        <div class="modes">
+          <div class="mode active" data-mode="timed">Temporizado (30s)</div>
+          <div class="mode" data-mode="endless">Infinito</div>
+          <div class="mode" data-mode="precision">Precisão (alvos fixos)</div>
+        </div>
+
+        <label>Alvos simultâneos: <span id="simLabel">1</span></label>
+        <input id="sim" type="range" min="1" max="6" value="1">
+
+        <label>Mostrar trilha do mouse</label>
+        <input id="trailToggle" type="checkbox" checked>
+
+        <div class="buttons">
+          <button id="saveBtn" class="secondary">Salvar resultado</button>
+        </div>
+      </div>
+
+      <div style="margin-top:12px">
+        <div style="font-size:13px;margin-bottom:6px"><strong>Estatísticas</strong></div>
+        <div style="font-size:13px">Precisão: <span id="accuracy">0%</span></div>
+        <div style="font-size:13px">Combo: <span id="combo">0</span></div>
+        <div style="font-size:12px;color:var(--gray);margin-top:8px">Dica: Aperte Espaço para iniciar/pausar. Clique na tela para atirar.</div>
+      </div>
+
+      <footer>Feito com ❤ — Point Wall</footer>
+    </div>
+  </div>
+
+  <script>
+  // Point Wall — Single-file game
+  (function(){
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    const cross = document.getElementById('crosshair');
+    const scoreEl = document.getElementById('score');
+    const hitsEl = document.getElementById('hits');
+    const missesEl = document.getElementById('misses');
+    const timeEl = document.getElementById('time');
+    const accEl = document.getElementById('accuracy');
+    const comboEl = document.getElementById('combo');
+
+    // controls
+    const sizeInput = document.getElementById('size');
+    const speedInput = document.getElementById('speed');
+    const simInput = document.getElementById('sim');
+    const trailToggle = document.getElementById('trailToggle');
+    const modes = document.querySelectorAll('.mode');
+
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const resetBtn = document.getElementById('resetBtn');
+
+    let W = canvas.width = canvas.clientWidth * devicePixelRatio;
+    let H = canvas.height = canvas.clientHeight * devicePixelRatio;
+    // scale for drawing
+    ctx.scale(devicePixelRatio, devicePixelRatio);
+
+    let state = {
+      running:false,
+      score:0,
+      hits:0,
+      misses:0,
+      combo:0,
+      bestCombo:0,
+      targets:[],
+      trails:[],
+      spawnTimer:0,
+      spawnInterval: parseInt(speedInput.value),
+      maxTargets: parseInt(simInput.value),
+      targetSize: parseInt(sizeInput.value),
+      mode:'timed',
+      timeLeft:30.0,
+      timeStart:0,
+    };
+
+    // helpers
+    function rand(min,max){return Math.random()*(max-min)+min}
+
+    function resize(){
+      W = canvas.width = canvas.clientWidth * devicePixelRatio;
+      H = canvas.height = canvas.clientHeight * devicePixelRatio;
+      ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+    }
+    window.addEventListener('resize', resize);
+
+    // spawn target
+    function spawn(){
+      if(state.targets.length >= state.maxTargets) return;
+      const padding = state.targetSize + 8;
+      const x = Math.floor(rand(padding, canvas.clientWidth - padding));
+      const y = Math.floor(rand(padding, canvas.clientHeight - padding));
+      const target = {
+        x,y,
+        size: state.targetSize,
+        alive:true,
+        radius: state.targetSize/2,
+        created: performance.now(),
+      };
+      state.targets.push(target);
+    }
+
+    // draw
+    function draw(){
+      // clear
+      ctx.clearRect(0,0,canvas.clientWidth,canvas.clientHeight);
+
+      // draw wall grid subtly
+      ctx.save();
+      ctx.globalAlpha = 0.06;
+      for(let gx=0; gx<canvas.clientWidth; gx+=40){
+        ctx.fillRect(gx,0,1,canvas.clientHeight);
+      }
+      for(let gy=0; gy<canvas.clientHeight; gy+=40){
+        ctx.fillRect(0,gy,canvas.clientWidth,1);
+      }
+      ctx.restore();
+
+      // draw targets
+      state.targets.forEach(t=>{
+        // shadow
+        ctx.beginPath();
+        ctx.ellipse(t.x+1.8,t.y+2,t.radius+6,t.radius+6,0,0,Math.PI*2);
+        ctx.fillStyle = 'rgba(0,0,0,0.18)';
+        ctx.fill();
+
+        // outer ring
+        ctx.beginPath();
+        ctx.ellipse(t.x,t.y,t.radius,t.radius,0,0,Math.PI*2);
+        ctx.fillStyle = 'rgba(255,122,24,0.12)';
+        ctx.fill();
+
+        // inner core
+        ctx.beginPath();
+        ctx.arc(t.x,t.y,t.radius*0.56,0,Math.PI*2);
+        ctx.fillStyle = 'rgba(255,122,24,0.95)';
+        ctx.fill();
+
+        // bull
+        ctx.beginPath();
+        ctx.arc(t.x,t.y,t.radius*0.28,0,Math.PI*2);
+        ctx.fillStyle = '#fff';
+        ctx.fill();
+      });
+
+      // draw trails
+      if(trailToggle.checked){
+        for(let i=0;i<state.trails.length;i++){
+          const p = state.trails[i];
+          ctx.beginPath();
+          ctx.moveTo(p.x,p.y);
+          ctx.lineTo(p.x+1,p.y+1);
+          ctx.strokeStyle = 'rgba(255,255,255,'+ (0.15 + i/state.trails.length*0.5) +')';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+      }
+
+      // hud
+      ctx.fillStyle = 'rgba(255,255,255,0.02)';
+      ctx.fillRect(8,8,220,56);
+
+      ctx.fillStyle = '#fff';
+      ctx.font = '13px Inter, Roboto, Arial';
+      ctx.fillText('Score: '+state.score,16,28);
+      ctx.fillStyle = 'rgba(255,255,255,0.6)';
+      ctx.fillText('Hits: '+state.hits+'  Misses: '+state.misses,16,46);
+    }
+
+    // main loop
+    let last = performance.now();
+    function loop(now){
+      const dt = now - last;
+      last = now;
+
+      if(state.running){
+        // spawn logic
+        state.spawnTimer += dt;
+        if(state.spawnTimer >= state.spawnInterval){
+          state.spawnTimer = 0;
+          spawn();
+        }
+
+        if(state.mode === 'timed'){
+          state.timeLeft -= dt/1000;
+          if(state.timeLeft <= 0){
+            state.timeLeft = 0;
+            stop();
+          }
+        }
+
+        // decay trails
+        if(state.trails.length>20) state.trails.shift();
+      }
+
+      draw();
+      updateUI();
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+
+    function updateUI(){
+      scoreEl.textContent = state.score;
+      hitsEl.textContent = state.hits;
+      missesEl.textContent = state.misses;
+      timeEl.textContent = (state.timeLeft).toFixed(1);
+      const totalShots = state.hits + state.misses;
+      accEl.textContent = totalShots===0? '0%' : Math.round((state.hits/totalShots)*100) + '%';
+      comboEl.textContent = state.combo;
+    }
+
+    // click - shoot
+    canvas.addEventListener('mousedown', (e)=>{
+      if(!state.running) return;
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+
+      // add trail
+      state.trails.push({x:mx,y:my});
+
+      // check collision
+      let hit = false;
+      for(let i=state.targets.length-1;i>=0;i--){
+        const t = state.targets[i];
+        const dx = mx - t.x; const dy = my - t.y;
+        if(Math.sqrt(dx*dx+dy*dy) <= t.radius){
+          // hit
+          state.targets.splice(i,1);
+          state.hits++;
+          state.score += Math.round(100 + Math.max(0, (50 - t.radius)) );
+          state.combo++;
+          state.bestCombo = Math.max(state.bestCombo, state.combo);
+          hit = true;
+          // small pop effect
+          popEffect(mx,my);
+          break;
+        }
+      }
+      if(!hit){
+        state.misses++;
+        state.combo = 0;
+        // penalty
+        state.score = Math.max(0, state.score - 20);
+      }
+    });
+
+    // pop effect (temporary circle)
+    const pops = [];
+    function popEffect(x,y){
+      pops.push({x,y,r:4,alpha:1});
+      setTimeout(()=>{pops.shift()},350);
+    }
+
+    // render pops on top
+    function renderPops(){
+      pops.forEach(p=>{
+        ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+        ctx.fillStyle = 'rgba(255,255,255,'+p.alpha+')'; ctx.fill();
+      })
+    }
+
+    // UI controls
+    sizeInput.addEventListener('input', ()=>{ state.targetSize = parseInt(sizeInput.value); document.getElementById('sizeLabel').textContent = sizeInput.value; });
+    speedInput.addEventListener('input', ()=>{ state.spawnInterval = parseInt(speedInput.value); document.getElementById('spdLabel').textContent = speedInput.value; });
+    simInput.addEventListener('input', ()=>{ state.maxTargets = parseInt(simInput.value); document.getElementById('simLabel').textContent = simInput.value; });
+
+    modes.forEach(m=>m.addEventListener('click', ()=>{
+      modes.forEach(x=>x.classList.remove('active'));
+      m.classList.add('active');
+      state.mode = m.dataset.mode;
+      if(state.mode==='timed'){ state.timeLeft = 30.0; }
+    }));
+
+    startBtn.addEventListener('click', ()=>{ start(); });
+    stopBtn.addEventListener('click', ()=>{ stop(); });
+    resetBtn.addEventListener('click', ()=>{ resetAll(); });
+
+    function start(){
+      if(state.running) return;
+      state.running = true;
+      state.spawnTimer = 0;
+      last = performance.now();
+      if(state.mode==='timed' && state.timeLeft<=0) state.timeLeft = 30.0;
+      startBtn.textContent = 'Pausar (Space)';
+    }
+    function stop(){
+      state.running = false;
+      startBtn.textContent = 'Iniciar (Space)';
+    }
+    function resetAll(){
+      state.running = false;
+      state.score = 0; state.hits=0; state.misses=0; state.combo=0; state.targets=[]; state.trails=[]; state.timeLeft = state.mode==='timed'?30.0:0.0;
+    }
+
+    // keyboard
+    window.addEventListener('keydown',(e)=>{
+      if(e.code==='Space'){ e.preventDefault(); if(state.running) stop(); else start(); }
+      if(e.key==='r' || e.key==='R'){ resetAll(); }
+    });
+
+    // crosshair movement
+    window.addEventListener('mousemove',(e)=>{
+      const rect = canvas.getBoundingClientRect();
+      if(e.clientX>=rect.left && e.clientX<=rect.right && e.clientY>=rect.top && e.clientY<=rect.bottom){
+        cross.style.display = 'block';
+        cross.style.left = (e.clientX - rect.left) + 'px';
+        cross.style.top = (e.clientY - rect.top) + 'px';
+      } else { cross.style.display = 'none'; }
+    });
+
+    // save result
+    document.getElementById('saveBtn').addEventListener('click', ()=>{
+      const data = {
+        score: state.score,
+        hits: state.hits,
+        misses: state.misses,
+        accuracy: (state.hits + state.misses)===0?0: Math.round((state.hits/(state.hits+state.misses))*100),
+        bestCombo: state.bestCombo,
+        mode: state.mode,
+        date: new Date().toLocaleString()
+      };
+      const blob = new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = 'point-wall-result.json'; a.click(); URL.revokeObjectURL(url);
+    });
+
+    // small loop to draw pops & trails on top
+    setInterval(()=>{
+      // draw pops directly
+      if(state.targets.length || pops.length || state.trails.length){
+        // after main draw, overlay pops
+        // (we'll call draw again quickly)
+        renderPops();
+      }
+    },60);
+
+    // initial labels
+    document.getElementById('spdLabel').textContent = speedInput.value;
+    document.getElementById('sizeLabel').textContent = sizeInput.value;
+    document.getElementById('simLabel').textContent = simInput.value;
+    document.getElementById('targetType').textContent = 'Círculo';
+
+    // fix HiDPI when opened in editors
+    setTimeout(resize,300);
+  })();
+  </script>
+</body>
+</html>
+
+
+
+
+
+
+
